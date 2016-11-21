@@ -39,7 +39,7 @@ Or, if you have virtualenvwrapper installed::
 Nagios/Icinga configuration
 ===========================
 
-This is example of perdata configuration for Gnocchi-nagios
+This is example of perfdata configuration for Gnocchi-nagios
 
 Preparing working directories::
 
