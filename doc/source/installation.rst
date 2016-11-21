@@ -22,7 +22,7 @@ Preparing working directories::
 
     $ mkdir -p /var/spool/gnocchi-nagios/{nagios, ready}
 
-In /etc/nagios3/nagios.conf::
+In /etc/nagios3/nagios.conf:
 
 .. code-block:: ini
 
@@ -44,7 +44,7 @@ In /etc/nagios3/nagios.conf::
 
 In /etc/nagios3/conf.d/gnocchi-nagios.cfg:
 
-.. code-block::
+.. code-block:: ini
 
     define command {
             command_name    gnocchi-nagios-service
@@ -71,7 +71,8 @@ Once it's setupped, you can configure gnocchi-nagios like this:
    spool_directory = /var/spool/gnocchi-nagios/ready
 
    [gnocchi]
-   auth_type=gnocchi-noauth
-   gnocchi_user_id = <uuid>
-   gnocchi_project_id = <uuid>
-   gnocchi_endpoint = <gnocchi_endpoint>
+   auth_type = gnocchi-noauth
+   roles = admin
+   user_id = nagios
+   project_id = nagios
+   endpoint = http://localhost:8041

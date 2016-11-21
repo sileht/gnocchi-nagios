@@ -12,6 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+from keystoneauth1 import loading
 from oslo_config import cfg
 
 
@@ -25,7 +26,8 @@ def list_opts():
             cfg.IntOpt('workers', min=1,
                        help='Number of workers for Gnocchi metric daemons. '
                        'By default the available number of CPU is used.'),
-            cfg.IntOpt('interval_delay', 15,
+            cfg.IntOpt('interval_delay',
+                       default=15,
                        help='Number of seconds between the spool directory '
                        'scanning'),
             cfg.BoolOpt('resubmit_on_crash',
@@ -34,6 +36,25 @@ def list_opts():
                         'file processing we can\'t really known if the '
                         'Gnocchi have received the data of not. This option '
                         'allows to resubmit the perfdata a second time.'),
-
+        ]),
+        ('gnocchi', [
+            cfg.StrOpt('region-name',
+                       help='Region name to use for OpenStack service '
+                       'endpoints.'),
+            cfg.StrOpt('interface',
+                       default='public',
+                       choices=('public', 'internal', 'admin', 'auth',
+                                'publicURL', 'internalURL', 'adminURL'),
+                       help='Type of endpoint in Identity service catalog to '
+                       'use for communication with OpenStack services.'),
         ]),
     ]
+
+
+def list_keystoneauth_opts():
+    # NOTE(sileht): the configuration file contains only the options
+    # for the gnocchi-noauth plugin. But other options are possible.
+    return [('gnocchi',
+             loading.get_auth_common_conf_options() +
+             loading.get_auth_plugin_conf_options('gnocchi-noauth')
+             )]

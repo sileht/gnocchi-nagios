@@ -14,32 +14,77 @@
 
 import multiprocessing
 import os
+import subprocess
+import time
 
 import fixtures
 
 from gnocchi_nagios import cli
+from gnocchi_nagios import gnocchi_client
 from gnocchi_nagios import perfdata_dispatcher
-
 from gnocchi_nagios.tests import base
 
 
 class TestFunctional(base.TestCase):
+    def setUp(self):
+        super(TestFunctional, self).setUp()
+        self.tempdir = self.useFixture(fixtures.TempDir()).path
+        conf_content = """
+[DEFAULT]
+spool_directory = "%s"
+
+[gnocchi]
+auth_type = gnocchi-noauth
+user_id = "nagios"
+project_id = "nagios"
+roles = admin
+endpoint = "%s"
+""" % (self.tempdir, os.getenv('PIFPAF_GNOCCHI_HTTP_URL'))
+
+        self.conffile = self.create_tempfiles([('gnocchi-data.conf',
+                                                conf_content)])[0]
+        self.conf = cli.prepare_service([], [self.conffile])
+
     @staticmethod
     def touch(fname):
         with open(fname, 'a'):
             os.utime(fname, None)
 
-    def test_dispatcher(self):
-        tempdir = self.useFixture(fixtures.TempDir()).path
-        queue = multiprocessing.Manager().Queue()
-        conf = cli.prepare_service([], [])
-        conf.set_override('spool_directory', tempdir)
-        p = perfdata_dispatcher.PerfdataDispatcher(0, conf, queue)
+    def test_main(self):
+        self.subp = subprocess.Popen(['gnocchi-nagios',
+                                      '--config-file=%s' % self.conffile],
+                                     preexec_fn=os.setsid,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT)
 
-        f1 = "%s/%s" % (tempdir, "host-perfdata.1479712710")
-        f2 = "%s/%s" % (tempdir, "service-perfdata.1479712710")
-        f3 = "%s/%s" % (tempdir, "host-perfdata.1479712720")
-        f4 = "%s/%s" % (tempdir, "service-perfdata.1479712720")
+        time.sleep(2)
+        if self.subp.poll() is not None:
+            self.assertEqual(None, self.subp.stdout.read())
+        self.addCleanup(self.subp.terminate)
+
+        c = gnocchi_client.get_gnocchiclient(self.conf)
+        rt = c.resource_type.get("nagios-service")
+        expected_rt = {
+            'attributes': {'host': {'max_length': 255,
+                                    'min_length': 0,
+                                    'required': True,
+                                    'type': 'string'},
+                           'name': {'max_length': 255,
+                                    'min_length': 0,
+                                    'required': True,
+                                    'type': 'string'}},
+            'name': 'nagios-service',
+            'state': 'active'}
+        self.assertEqual(expected_rt, rt)
+
+    def test_dispatcher(self):
+        queue = multiprocessing.Manager().Queue()
+        p = perfdata_dispatcher.PerfdataDispatcher(0, self.conf, queue)
+
+        f1 = "%s/%s" % (self.tempdir, "host-perfdata.1479712710")
+        f2 = "%s/%s" % (self.tempdir, "service-perfdata.1479712710")
+        f3 = "%s/%s" % (self.tempdir, "host-perfdata.1479712720")
+        f4 = "%s/%s" % (self.tempdir, "service-perfdata.1479712720")
         p1 = f1 + perfdata_dispatcher.IN_PROCESS_SUFFIX + "0"
         p2 = f2 + perfdata_dispatcher.IN_PROCESS_SUFFIX + "1"
 

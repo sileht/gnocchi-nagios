@@ -3,6 +3,7 @@
 # process, which may cause wedges in the gate later.
 
 pbr>=1.6
+gnocchiclient
 oslo.config>=3.14.0  # Apache-2.0
 oslo.utils>=3.18.0
 oslo.log>=2.3.0

@@ -21,7 +21,7 @@ import six
 LOG = log.getLogger(__name__)
 
 
-class PerfdataService(cotyledon.Service):
+class PerfdataProcessor(cotyledon.Service):
     def __init__(self, worker_id, conf, queue):
         self._conf = conf
         self._queue = queue
@@ -32,13 +32,14 @@ class PerfdataService(cotyledon.Service):
         while not self._shutdown.is_set():
             try:
                 try:
-                    path = self.queue.get(block=True, timeout=10)
+                    path = self._queue.get(block=True, timeout=10)
                 except six.moves.queue.Empty:
                     # NOTE(sileht): Allow the process to exit gracefully every
                     # 10 seconds if it don't do anything
                     return
                 self._process_perfdata_file(path)
             except Exception:
+                # TODO(sileht): replace with tenacity
                 LOG.error("Unexpected error during measures processing",
                           exc_info=True)
 

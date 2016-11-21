@@ -16,10 +16,12 @@ import multiprocessing
 
 import cotyledon
 from cotyledon import oslo_config_glue
+from keystoneauth1 import loading as ka_loading
 from oslo_config import cfg
 from oslo_log import log
 import pbr
 
+from gnocchi_nagios import gnocchi_client
 from gnocchi_nagios import opts
 from gnocchi_nagios import perfdata_dispatcher
 from gnocchi_nagios import perfdata_processor
@@ -39,7 +41,7 @@ class GnocchiNagiosServiceManager(cotyledon.ServiceManager):
                  args=(self.conf, self.queue))
         self.processor_id = self.add(
             perfdata_processor.PerfdataProcessor, args=(self.conf, self.queue),
-            workers=conf.metricd.workers)
+            workers=conf.workers)
 
         self.register_hooks(on_reload=self.on_reload)
 
@@ -49,8 +51,8 @@ class GnocchiNagiosServiceManager(cotyledon.ServiceManager):
         # restarted with the new number of workers. This is important because
         # we use the number of worker to declare the capability in tooz and
         # to select the block of metrics to proceed.
-        self.reconfigure(self.metric_processor_id,
-                         workers=self.conf.metricd.workers)
+        self.reconfigure(self.processor_id,
+                         workers=self.conf.workers)
 
     def run(self):
         super(GnocchiNagiosServiceManager, self).run()
@@ -74,16 +76,19 @@ def prepare_service(args=None, default_config_files=None):
     for group, options in opts.list_opts():
         conf.register_opts(list(options),
                            group=None if group == "DEFAULT" else group)
+    ka_loading.register_auth_conf_options(conf, 'gnocchi')
+    ka_loading.register_session_conf_options(conf, 'gnocchi')
 
     conf.set_default("workers", get_default_workers())
+    conf.set_default("auth_type", "gnocchi-noauth", "gnocchi")
 
-    conf(args, project='gnocchi', validate_default_values=True,
+    conf(args, project='gnocchi-nagios', validate_default_values=True,
          default_config_files=default_config_files,
-         version=pbr.version.VersionInfo('gnocchi').version_string())
+         version=pbr.version.VersionInfo('gnocchi-nagios').version_string())
 
     log.set_defaults(default_log_levels=log.get_default_log_levels() +
                      ["passlib.utils.compat=INFO"])
-    log.setup(conf, 'gnocchi')
+    log.setup(conf, 'gnocchi-nagios')
     conf.log_opt_values(LOG, log.DEBUG)
 
     return conf
@@ -91,4 +96,5 @@ def prepare_service(args=None, default_config_files=None):
 
 def main():
     conf = prepare_service()
+    gnocchi_client.update_gnocchi_resource_type(conf)
     GnocchiNagiosServiceManager(conf).run()
