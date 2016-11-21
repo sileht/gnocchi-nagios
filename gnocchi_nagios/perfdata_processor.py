@@ -45,7 +45,7 @@ IN_PROCESS_SUFFIX = "-processed-by-worker-"
 
 MANDATORY_ATTRS_COMMON = ('DATATYPE', 'TIMET', 'HOSTNAME')
 MANDATORY_ATTRS_SERVICE = ('SERVICEDESC', 'SERVICEPERFDATA')
-MANDATORY_ATTRS_HOST = ('HOSTDESC', 'HOSTPERFDATA')
+MANDATORY_ATTRS_HOST = ('HOSTPERFDATA',)
 
 # uuid5 namespace for id transformation.
 # NOTE(chdent): This UUID must stay the same, forever, across all
@@ -164,6 +164,9 @@ class PerfdataProcessor(cotyledon.Service):
         self._attribute_check(attrs, MANDATORY_ATTRS_COMMON)
         if attrs["DATATYPE"] == "HOSTPERFDATA":
             self._attribute_check(attrs, MANDATORY_ATTRS_HOST)
+            return (attrs["HOSTNAME"], "PING",
+                    self._parse_measures(attrs["TIMET"],
+                                         attrs["HOSTPERFDATA"]))
         elif attrs["DATATYPE"] == "SERVICEPERFDATA":
             self._attribute_check(attrs, MANDATORY_ATTRS_SERVICE)
             return (attrs["HOSTNAME"],
@@ -181,6 +184,8 @@ class PerfdataProcessor(cotyledon.Service):
                     key, list(attrs.keys())))
 
     def _parse_measures(self, timet, perfdata):
+        if not perfdata:
+            return {}
         try:
             timestamp = datetime.datetime.utcfromtimestamp(
                 float(timet)).replace(tzinfo=iso8601.iso8601.UTC).isoformat()
@@ -208,17 +213,42 @@ class PerfdataProcessor(cotyledon.Service):
                 r.setdefault(metric, []).append(value)
         return ids_mapping, batch
 
-    @staticmethod
-    def _convert_value(v):
+    def _convert_value(self, v):
         # This currently takes care only on bytes
         try:
+            v = v.strip()
+            if v[-1] in ["T", "G", "M", "K"]:
+                # Assuming this is bytes...
+                try:
+                    v = "%s%s%s" % (float(v[:-1]), v[-1], "B")
+                except ValueError:
+                    pass
             try:
                 return strutils.string_to_bytes(v, "IEC")
             except ValueError:
                 try:
                     return strutils.string_to_bytes(v, "SI")
                 except ValueError:
-                    return float(v)
+                    try:
+                        return self._string_to_any(v)
+                    except ValueError:
+                        return float(v)
         except ValueError:
             raise MalformedPerfdata(
-                "Unknow perfdata value/unit: %s" % v)
+                "Unknow perfdata value/unit: '%s'" % v)
+
+    def _string_to_any(self, v):
+        if len(v) < 2:
+            raise ValueError
+        elif v[-2:] == "ms":
+            return float(v[:-2]) * 1000.0
+        else:
+            # Nagios unit is chaos...
+            for unit in ["RPM", "Volts", "degrees_C", "s", "%"]:
+                if v.endswith(unit):
+                    try:
+                        return float(v[:-len(unit)])
+                    except ValueError:
+                        continue
+            else:
+                raise ValueError
