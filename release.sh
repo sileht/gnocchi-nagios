@@ -36,5 +36,5 @@ set -x
 
 read
 git push --tags
-twine upload -r pypi -s dist/gnocchi-nagios-${version}.tar.gz dist/gnocchi-nagios-${version}-py2.py3-none-any.whl
+twine upload -r pypi -s dist/gnocchi-nagios-${version}.tar.gz dist/gnocchi_nagios-${version}-py2.py3-none-any.whl
 git checkout master
