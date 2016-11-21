@@ -1,0 +1,6 @@
+[run]
+branch = True
+source = gnocchi_nagios
+
+[report]
+ignore_errors = True
