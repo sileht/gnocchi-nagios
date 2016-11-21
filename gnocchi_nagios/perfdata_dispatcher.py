@@ -50,7 +50,8 @@ class PerfdataDispatcher(cotyledon.Service):
 
             if path not in self._local_queue:
                 LOG.debug("new perfdata file: %s" % path)
-                self._queue.put(path)
+                self._queue.put(os.path.join(
+                    self._conf.spool_directory, path))
 
             # track unprocessed but already send path
             self._local_queue[path] = self._seen_flag
