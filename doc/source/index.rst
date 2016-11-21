@@ -3,17 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to gnocchi_nagios's documentation!
+Welcome to Gnocchi-nagios's documentation!
 ========================================================
-
-Contents:
-=========
-
-.. toctree::
-   :maxdepth: 2
-
-   installation
-   contributing
 
 .. include:: ../../README.rst
 
