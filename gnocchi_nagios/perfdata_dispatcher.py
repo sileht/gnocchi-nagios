@@ -36,6 +36,11 @@ class PerfdataDispatcher(cotyledon.Service):
 
         self._seen_flag = True
 
+        for path in os.listdir(self._conf.spool_directory):
+            if IN_PROCESS_SUFFIX in path:
+                # FIXME(sileht): implements resubmit_on_crash
+                os.remove((os.path.join(self._conf.spool_directory, path)))
+
     def run(self):
         while not self._shutdown.is_set():
             with timeutils.StopWatch() as timer:
