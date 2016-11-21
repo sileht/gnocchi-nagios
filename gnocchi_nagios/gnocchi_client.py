@@ -47,8 +47,8 @@ RESOURCES_UPDATE_OPERATION = [
      "type": "add_type",
      "resource_type": "nagios-service",
      "data": {
-         'name': {"type": "string", "min_length": 0, "max_length": 255,
-                  "required": True},
+         'service': {"type": "string", "min_length": 0, "max_length": 255,
+                     "required": True},
          'host': {"type": "string", "min_length": 0, "max_length": 255,
                   "required": True},
      }}

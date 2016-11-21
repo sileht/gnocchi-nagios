@@ -22,7 +22,14 @@ import fixtures
 from gnocchi_nagios import cli
 from gnocchi_nagios import gnocchi_client
 from gnocchi_nagios import perfdata_dispatcher
+from gnocchi_nagios import perfdata_processor
 from gnocchi_nagios.tests import base
+
+
+PERFDATA_SERVICE = """
+DATATYPE::SERVICEPERFDATA\tTIMET::1479726660\tHOSTNAME::arn\tSERVICEDESC::Uptime\tSERVICEPERFDATA::uptime=9175101.06;;;;\tSERVICECHECKCOMMAND::check_mk-uptime\tHOSTSTATE::UP\tHOSTSTATETYPE::HARD\tSERVICESTATE::OK\tSERVICESTATETYPE::HARD
+DATATYPE::SERVICEPERFDATA\tTIMET::1479726660\tHOSTNAME::arn\tSERVICEDESC::fs_/\tSERVICEPERFDATA::/=2169.12890625MB;3603.049099;4256.33705;0;4909.625 fs_size=4909.625MB;;;; growth=33.753218;;;; trend=-1.658471;;;0;204.567708 inodes_used=61167;294912;311296;0;327680\tSERVICECHECKCOMMAND::check_mk-df\tHOSTSTATE::UP\tHOSTSTATETYPE::HARD\tSERVICESTATE::OK\tSERVICESTATETYPE::HARD
+"""  # noqa
 
 
 class TestFunctional(base.TestCase):
@@ -31,6 +38,7 @@ class TestFunctional(base.TestCase):
         self.tempdir = self.useFixture(fixtures.TempDir()).path
         conf_content = """
 [DEFAULT]
+debug = False
 spool_directory = "%s"
 
 [gnocchi]
@@ -46,8 +54,10 @@ endpoint = "%s"
         self.conf = cli.prepare_service([], [self.conffile])
 
     @staticmethod
-    def touch(fname):
-        with open(fname, 'a'):
+    def touch(fname, content=None):
+        with open(fname, 'a') as f:
+            if content is not None:
+                f.write(content)
             os.utime(fname, None)
 
     def test_main(self):
@@ -69,10 +79,10 @@ endpoint = "%s"
                                     'min_length': 0,
                                     'required': True,
                                     'type': 'string'},
-                           'name': {'max_length': 255,
-                                    'min_length': 0,
-                                    'required': True,
-                                    'type': 'string'}},
+                           'service': {'max_length': 255,
+                                       'min_length': 0,
+                                       'required': True,
+                                       'type': 'string'}},
             'name': 'nagios-service',
             'state': 'active'}
         self.assertEqual(expected_rt, rt)
@@ -140,3 +150,56 @@ endpoint = "%s"
         p._run_job()
         self.assertEqual(0, queue.qsize())
         self.assertEqual(0, len(p._local_queue))
+
+    def test_processor(self):
+        gnocchi_client.update_gnocchi_resource_type(self.conf)
+
+        f1 = "%s/%s" % (self.tempdir, "service-perfdata.1479712710")
+        self.touch(f1, PERFDATA_SERVICE)
+
+        p = perfdata_processor.PerfdataProcessor(0, self.conf, None)
+        p._process_perfdata_file(f1)
+
+        c = gnocchi_client.get_gnocchiclient(self.conf)
+        resources = c.resource.list('nagios-service')
+        self.assertEqual(2, len(resources))
+        self.assertEqual(['arn::Uptime', 'arn::fs_/'],
+                         sorted([r['original_resource_id']
+                                 for r in resources]))
+        self.assertEqual(['arn', 'arn'],
+                         sorted([r['host']
+                                 for r in resources]))
+        self.assertEqual(['Uptime', 'fs_/'],
+                         sorted([r['service']
+                                 for r in resources]))
+
+        metrics = c.metric.list()
+        self.assertEqual(6, len(metrics))
+
+        # FIXME(sileht): Looks like we have a bug with the '/' metric
+        # measures = c.metric.get_measures(
+        #    "/",
+        #    resource_id=perfdata_processor.encode_resource_id("arn::fs_/"),
+        #    refresh=True)
+        # expected_measures = [
+        # ]
+        # self.assertEqual(expected_measures, measures)
+
+        measures = c.metric.get_measures(
+            "trend",
+            resource_id=perfdata_processor.encode_resource_id("arn::fs_/"),
+            refresh=True)
+        expected_measures = [
+            ['2016-11-21T00:00:00+00:00', 86400.0, -1.658471],
+            ['2016-11-21T11:00:00+00:00', 3600.0, -1.658471],
+            ['2016-11-21T11:10:00+00:00', 300.0, -1.658471]
+        ]
+        self.assertEqual(expected_measures, measures)
+
+        measures = c.metric.get_measures("uptime", resource_id="arn::Uptime",
+                                         refresh=True)
+        expected_measures = [
+            [u'2016-11-21T00:00:00+00:00', 86400.0, 9175101.06],
+            [u'2016-11-21T11:00:00+00:00', 3600.0, 9175101.06],
+            [u'2016-11-21T11:10:00+00:00', 300.0, 9175101.06]]
+        self.assertEqual(expected_measures, measures)

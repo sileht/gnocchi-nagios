@@ -63,6 +63,12 @@ Gnocchi
 
 Installation and configuration of Gnocchi can be found `here <http://gnocchi.xyz/>`_
 
+
+==============
+Gnocchi-nagios
+==============
+
+
 Once it's setupped, you can configure gnocchi-nagios like this:
 
 .. code-block:: ini
@@ -76,3 +82,6 @@ Once it's setupped, you can configure gnocchi-nagios like this:
    user_id = nagios
    project_id = nagios
    endpoint = http://localhost:8041
+
+
+Note: Gnocchi-data assumes nagios TIMET epoch are in UTC
