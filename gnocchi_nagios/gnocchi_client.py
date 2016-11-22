@@ -16,11 +16,9 @@ import sys
 
 from gnocchiclient import client
 from gnocchiclient import exceptions
-from keystoneauth1 import loading as ka_loading
-from keystoneauth1 import session as ka_session
 from keystoneauth1 import exceptions as ka_exc
+from keystoneauth1 import loading as ka_loading
 from oslo_log import log
-import requests
 import tenacity
 
 LOG = log.getLogger(__name__)
@@ -36,7 +34,8 @@ def get_gnocchiclient(conf, endpoint_override=None):
                          region_name=conf.gnocchi.region_name,
                          endpoint_override=endpoint_override)
 
-retry=tenacity.retry(
+
+retry = tenacity.retry(
     retry=tenacity.retry_if_exception_type(ka_exc.ConnectFailure),
     wait=tenacity.wait_exponential(multiplier=1, max=10),
     after=tenacity.after_log(LOG, log.DEBUG)
@@ -67,6 +66,7 @@ def _run_update_op(gnocchi, op):
             gnocchi.resource_type.create({'name': op["resource_type"],
                                           'attributes': op["data"]})
 
+
 def update_gnocchi_resource_type(conf):
     gnocchi = get_gnocchiclient(conf)
     for op in RESOURCES_UPDATE_OPERATION:
@@ -76,5 +76,3 @@ def update_gnocchi_resource_type(conf):
             LOG.error("Gnocchi update fail: %s", op['desc'],
                       exc_info=True)
             sys.exit(1)
-
-

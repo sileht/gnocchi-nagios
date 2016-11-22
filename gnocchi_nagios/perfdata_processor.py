@@ -34,8 +34,8 @@ import cotyledon
 from gnocchiclient import exceptions
 import iso8601
 from oslo_log import log
-from oslo_utils import strutils
 from oslo_serialization import jsonutils
+from oslo_utils import strutils
 import six
 
 from gnocchi_nagios import gnocchi_client
@@ -158,7 +158,7 @@ class PerfdataProcessor(cotyledon.Service):
             self._client.metric.batch_resources_metrics_measures(batch)
 
     def _process_perfdata_line(self, line):
-        #LOG.debug("Processing line: %s", line)
+        # LOG.debug("Processing line: %s", line)
         try:
             attrs = dict(item.split("::", 1) for item in line.split('\t'))
         except ValueError:
