@@ -27,6 +27,7 @@
 import datetime
 import os
 import threading
+import time
 import uuid
 
 import cotyledon
@@ -49,6 +50,16 @@ MANDATORY_ATTRS_HOST = ('HOSTPERFDATA',)
 # NOTE(chdent): This UUID must stay the same, forever, across all
 # of gnocchi to preserve its value as a URN namespace.
 RESOURCE_ID_NAMESPACE = uuid.UUID('0a7a15ff-aa13-4ac2-897c-9bdf30ce175b')
+
+
+def timeit(method):
+    def wrapper(*arg, **kwarg):
+        t1 = time.time()
+        res = method(*arg, **kwarg)
+        t2 = time.time()
+        LOG.info("%s tooks %ss" % (method.__name__, (t2 - t1)))
+        return res
+    return wrapper
 
 
 def encode_resource_id(value):
@@ -93,6 +104,7 @@ class PerfdataProcessor(cotyledon.Service):
                 LOG.error("Unexpected error during measures processing",
                           exc_info=True)
 
+    @timeit
     def _process_perfdata_files(self, paths):
         data = []
         for path in paths:
