@@ -72,6 +72,5 @@ class PerfdataDispatcher(cotyledon.Service):
         # Invert flag for next pass
         self._seen_flag = not self._seen_flag
 
-
         # Log some stat
         LOG.info("Currently work on %d files, %d files are waiting.", in_process, len(self._local_queue))
