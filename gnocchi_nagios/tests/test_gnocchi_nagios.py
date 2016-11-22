@@ -95,8 +95,8 @@ endpoint = "%s"
         f2 = "%s/%s" % (self.tempdir, "service-perfdata.1479712710")
         f3 = "%s/%s" % (self.tempdir, "host-perfdata.1479712720")
         f4 = "%s/%s" % (self.tempdir, "service-perfdata.1479712720")
-        p1 = f1 + perfdata_dispatcher.IN_PROCESS_SUFFIX + "0"
-        p2 = f2 + perfdata_dispatcher.IN_PROCESS_SUFFIX + "1"
+        p1 = f1 + self.conf.file_picked_suffix + "0"
+        p2 = f2 + self.conf.file_picked_suffix + "1"
 
         # Nagios put files
         self.touch(f1)
@@ -158,7 +158,7 @@ endpoint = "%s"
         self.touch(f1, PERFDATA_SERVICE)
 
         p = perfdata_processor.PerfdataProcessor(0, self.conf, None)
-        p._process_perfdata_file(f1)
+        p._process_perfdata_files([f1])
 
         c = gnocchi_client.get_gnocchiclient(self.conf)
         resources = c.resource.list('nagios-service')
