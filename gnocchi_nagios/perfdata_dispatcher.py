@@ -49,10 +49,8 @@ class PerfdataDispatcher(cotyledon.Service):
                                         timer.elapsed()))
 
     def _run_job(self):
-        in_process = 0
         for path in os.listdir(self._conf.spool_directory):
             if IN_PROCESS_SUFFIX in path:
-                in_process += 1
                 continue
 
             if path not in self._local_queue:
@@ -73,5 +71,4 @@ class PerfdataDispatcher(cotyledon.Service):
         self._seen_flag = not self._seen_flag
 
         # Log some stat
-        LOG.info("Currently work on %d files, %d files are waiting.",
-                 in_process, len(self._local_queue))
+        LOG.info("Currently %d files are waiting.", len(self._local_queue))

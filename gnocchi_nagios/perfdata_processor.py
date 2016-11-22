@@ -120,42 +120,42 @@ class PerfdataProcessor(cotyledon.Service):
 
     @gnocchi_client.retry
     def _post_batch(self, path, ids_mapping, batch):
-        LOG.info("Post content of %s (%d bytes)",
+        LOG.info("%s: batch size %d bytes",
                  path, len(jsonutils.dumps(batch)))
         try:
             # TODO(sileht): Be smarted when create_metrics=True will be
             # available
-            self._client.metric.batch_resources_metrics_measures(batch)
+            LOG.info("%s: trying batch measures", path)
+            self._client.metric.batch_resources_metrics_measures(
+                batch, create_metrics=True)
         except exceptions.BadRequest as e:
-            m = self.RE_UNKNOW_METRICS.match(six.text_type(e))
-            if m is None:
+            if not isinstance(e.message, dict):
+                raise
+            if e.message.get('cause') != 'Unknown resources':
                 raise
 
-            # NOTE(sileht): Create all missing resources and metrics
-            metric_list = self.RE_UNKNOW_METRICS_LIST.findall(m.group(1))
-            for gnocchi_id, metric_name in metric_list:
+            LOG.info("%s: %s/%s resources to create", path,
+                     len(e.message['detail']), len(ids_mapping))
+
+            for gnocchi_id in e.message['detail']:
+                LOG.info("%s: creating resource: %s",
+                         path, ids_mapping[gnocchi_id])
                 resource = {
                     'id': "%s::%s" % ids_mapping[gnocchi_id],
                     'host': ids_mapping[gnocchi_id][0],
                     'service': ids_mapping[gnocchi_id][1],
-                    'metrics': {metric_name: {}}
                 }
                 try:
                     self._client.resource.create("nagios-service",
                                                  resource)
                 except exceptions.ResourceAlreadyExists:
-                    metric = {'resource_id': resource['id'],
-                              'name': metric_name}
-                    try:
-                        self._client.metric.create(metric)
-                    except exceptions.NamedMetricAlreadyExists:
-                        # NOTE(sileht): metric created in the meantime
-                        pass
-                    except exceptions.ClientException as e:
-                        LOG.error(six.text_type(e))
+                    # Created somewhere else
+                    pass
 
             # Must work now !
-            self._client.metric.batch_resources_metrics_measures(batch)
+            LOG.info("%s: trying (again) batch measures", path)
+            self._client.metric.batch_resources_metrics_measures(
+                batch, create_metrics=True)
 
     def _process_perfdata_line(self, line):
         # LOG.debug("Processing line: %s", line)
