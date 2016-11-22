@@ -31,14 +31,12 @@ import threading
 import uuid
 
 import cotyledon
-from keystoneauth1 import exceptions as ka_exc
 from gnocchiclient import exceptions
 import iso8601
 from oslo_log import log
 from oslo_utils import strutils
 from oslo_serialization import jsonutils
 import six
-import tenacity
 
 from gnocchi_nagios import gnocchi_client
 
@@ -120,11 +118,7 @@ class PerfdataProcessor(cotyledon.Service):
     RE_UNKNOW_METRICS = re.compile("Unknown metrics: (.*) \(HTTP 400\)")
     RE_UNKNOW_METRICS_LIST = re.compile("([^/ ,]*)/([^,]*)")
 
-    @tenacity.retry(
-        retry=tenacity.retry_if_exception_type(ka_exc.ConnectFailure),
-        wait=tenacity.wait_exponential(multiplier=1, max=10),
-        after=tenacity.after_log(LOG, log.DEBUG)
-    )
+    @gnocchi_client.retry
     def _post_batch(self, path, ids_mapping, batch):
         LOG.info("Post content of %s (%d bytes)",
                  path, len(jsonutils.dumps(batch)))
