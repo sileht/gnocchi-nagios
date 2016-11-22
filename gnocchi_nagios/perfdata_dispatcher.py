@@ -23,10 +23,9 @@ import six
 
 LOG = log.getLogger(__name__)
 
-IN_PROCESS_SUFFIX = "-processed-by-worker-"
-
 
 class PerfdataDispatcher(cotyledon.Service):
+
     def __init__(self, worker_id, conf, queue):
         self._conf = conf
         self._queue = queue
@@ -37,7 +36,7 @@ class PerfdataDispatcher(cotyledon.Service):
         self._seen_flag = True
 
         for path in os.listdir(self._conf.spool_directory):
-            if IN_PROCESS_SUFFIX in path:
+            if self._conf.file_picked_suffix in path:
                 # FIXME(sileht): implements resubmit_on_crash
                 os.remove((os.path.join(self._conf.spool_directory, path)))
 
@@ -49,17 +48,22 @@ class PerfdataDispatcher(cotyledon.Service):
                                         timer.elapsed()))
 
     def _run_job(self):
+        paths = []
         for path in os.listdir(self._conf.spool_directory):
-            if IN_PROCESS_SUFFIX in path:
+            if self._conf.file_picked_suffix in path:
                 continue
 
             if path not in self._local_queue:
                 LOG.debug("new perfdata file: %s" % path)
-                self._queue.put(os.path.join(
-                    self._conf.spool_directory, path))
+                paths.append(os.path.join(self._conf.spool_directory, path))
 
             # track unprocessed but already send path
             self._local_queue[path] = self._seen_flag
+
+        while paths:
+            size = min(self._conf.file_per_worker_pass, len(paths))
+            self._queue.put(paths[0:size])
+            paths = paths[size:]
 
         # Remove processed files
         self._local_queue = dict(

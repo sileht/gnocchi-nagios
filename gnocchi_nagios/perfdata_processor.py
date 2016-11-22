@@ -41,8 +41,6 @@ from gnocchi_nagios import gnocchi_client
 
 LOG = log.getLogger(__name__)
 
-IN_PROCESS_SUFFIX = "-processed-by-worker-"
-
 MANDATORY_ATTRS_COMMON = ('DATATYPE', 'TIMET', 'HOSTNAME')
 MANDATORY_ATTRS_SERVICE = ('SERVICEDESC', 'SERVICEPERFDATA')
 MANDATORY_ATTRS_HOST = ('HOSTPERFDATA',)
@@ -85,43 +83,44 @@ class PerfdataProcessor(cotyledon.Service):
         while not self._shutdown.is_set():
             try:
                 try:
-                    path = self._queue.get(block=True, timeout=10)
+                    paths = self._queue.get(block=True, timeout=10)
                 except six.moves.queue.Empty:
                     # NOTE(sileht): Allow the process to exit gracefully every
                     # 10 seconds if it don't do anything
                     return
-                self._process_perfdata_file(path)
+                self._process_perfdata_files(paths)
             except Exception:
                 LOG.error("Unexpected error during measures processing",
                           exc_info=True)
 
-    def _process_perfdata_file(self, path):
-        to_process = "%s%s%s" % (path, IN_PROCESS_SUFFIX, self._worker_id)
-        os.rename(path, to_process)
-
+    def _process_perfdata_files(self, paths):
         data = []
-        try:
-            with open(to_process, 'r') as f:
-                for line in f.readlines():
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        data.append(self._process_perfdata_line(line))
-                    except MalformedPerfdata as e:
-                        LOG.error(str(e))
-            self._post_batch(path, *self._prepare_batch(data))
-        finally:
-            os.remove(to_process)
+        for path in paths:
+            to_process = "%s%s%s" % (path, self._conf.file_picked_suffix,
+                                     self._worker_id)
+            os.rename(path, to_process)
+
+            try:
+                with open(to_process, 'r') as f:
+                    for line in f.readlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            data.append(self._process_perfdata_line(line))
+                        except MalformedPerfdata as e:
+                            LOG.error(str(e))
+            finally:
+                os.remove(to_process)
+
+        self._post_batch(paths, *self._prepare_batch(data))
 
     @gnocchi_client.retry
-    def _post_batch(self, path, ids_mapping, batch):
+    def _post_batch(self, paths, ids_mapping, batch):
         LOG.info("%s: batch size %d bytes",
-                 path, len(jsonutils.dumps(batch)))
+                 paths, len(jsonutils.dumps(batch)))
         try:
-            # TODO(sileht): Be smarted when create_metrics=True will be
-            # available
-            LOG.info("%s: trying batch measures", path)
+            LOG.info("%s: trying batch measures", paths)
             self._client.metric.batch_resources_metrics_measures(
                 batch, create_metrics=True)
         except exceptions.BadRequest as e:
@@ -130,12 +129,12 @@ class PerfdataProcessor(cotyledon.Service):
             if e.message.get('cause') != 'Unknown resources':
                 raise
 
-            LOG.info("%s: %s/%s resources to create", path,
+            LOG.info("%s: %s/%s resources to create", paths,
                      len(e.message['detail']), len(ids_mapping))
 
             for gnocchi_id in e.message['detail']:
                 LOG.info("%s: creating resource: %s",
-                         path, ids_mapping[gnocchi_id])
+                         paths, ids_mapping[gnocchi_id])
                 resource = {
                     'id': "%s::%s" % ids_mapping[gnocchi_id],
                     'host': ids_mapping[gnocchi_id][0],
@@ -149,7 +148,7 @@ class PerfdataProcessor(cotyledon.Service):
                     pass
 
             # Must work now !
-            LOG.info("%s: trying (again) batch measures", path)
+            LOG.info("%s: trying (again) batch measures", paths)
             self._client.metric.batch_resources_metrics_measures(
                 batch, create_metrics=True)
 

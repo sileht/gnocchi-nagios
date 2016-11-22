@@ -25,6 +25,13 @@ def list_opts():
             cfg.IntOpt('workers', min=1,
                        help='Number of workers for Gnocchi metric daemons. '
                        'By default the available number of CPU is used.'),
+            cfg.IntOpt('file_per_worker_pass',
+                       default=1,
+                       help='Number of file read by a worker run'),
+            cfg.StrOpt('file_picked_suffix',
+                       default="-processed-by-worker-",
+                       help='Suffix used when file is currently handled by a '
+                       'worker'),
             cfg.IntOpt('interval_delay',
                        default=15,
                        help='Number of seconds between the spool directory '

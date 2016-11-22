@@ -38,7 +38,7 @@ def get_gnocchiclient(conf, endpoint_override=None):
 retry = tenacity.retry(
     retry=tenacity.retry_if_exception_type(ka_exc.ConnectFailure),
     wait=tenacity.wait_exponential(multiplier=1, max=10),
-    after=tenacity.after_log(LOG, log.DEBUG)
+    after=tenacity.after_log(LOG, log.INFO)
 )
 
 
