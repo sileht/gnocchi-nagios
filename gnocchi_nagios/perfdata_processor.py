@@ -113,16 +113,16 @@ class PerfdataProcessor(cotyledon.Service):
             finally:
                 os.remove(to_process)
 
-        self._post_batch(paths, *self._prepare_batch(data))
+        self._post_batch([os.path.basename(p) for p in paths],
+                         *self._prepare_batch(data))
 
     @gnocchi_client.retry
     def _post_batch(self, paths, ids_mapping, batch):
-        LOG.info("%s: batch size %d bytes",
-                 paths, len(jsonutils.dumps(batch)))
         try:
-            LOG.info("%s: trying batch measures", paths)
             self._client.metric.batch_resources_metrics_measures(
                 batch, create_metrics=True)
+            LOG.info("%s: batched size %d bytes",
+                     paths, len(jsonutils.dumps(batch)))
         except exceptions.BadRequest as e:
             if not isinstance(e.message, dict):
                 raise
@@ -148,9 +148,10 @@ class PerfdataProcessor(cotyledon.Service):
                     pass
 
             # Must work now !
-            LOG.info("%s: trying (again) batch measures", paths)
             self._client.metric.batch_resources_metrics_measures(
                 batch, create_metrics=True)
+            LOG.info("%s: batched size %d bytes",
+                     paths, len(jsonutils.dumps(batch)))
 
     def _process_perfdata_line(self, line):
         # LOG.debug("Processing line: %s", line)
