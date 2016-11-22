@@ -31,11 +31,14 @@ import threading
 import uuid
 
 import cotyledon
+from keystoneauth1 import exceptions as ka_exc
 from gnocchiclient import exceptions
 import iso8601
 from oslo_log import log
 from oslo_utils import strutils
+from oslo_serialization import jsonutils
 import six
+import tenacity
 
 from gnocchi_nagios import gnocchi_client
 
@@ -110,15 +113,21 @@ class PerfdataProcessor(cotyledon.Service):
                         data.append(self._process_perfdata_line(line))
                     except MalformedPerfdata as e:
                         LOG.error(str(e))
-            self._post_batch(*self._prepare_batch(data))
+            self._post_batch(path, *self._prepare_batch(data))
         finally:
             os.remove(to_process)
 
     RE_UNKNOW_METRICS = re.compile("Unknown metrics: (.*) \(HTTP 400\)")
     RE_UNKNOW_METRICS_LIST = re.compile("([^/ ,]*)/([^,]*)")
 
-    def _post_batch(self, ids_mapping, batch):
-        LOG.debug("post: %s", batch)
+    @tenacity.retry(
+        retry=tenacity.retry_if_exception_type(ka_exc.ConnectFailure),
+        wait=tenacity.wait_exponential(multiplier=1, max=10),
+        after=tenacity.after_log(LOG, log.DEBUG)
+    )
+    def _post_batch(self, path, ids_mapping, batch):
+        LOG.info("Post content of %s (%d bytes)",
+                 path, len(jsonutils.dumps(batch)))
         try:
             # TODO(sileht): Be smarted when create_metrics=True will be
             # available
@@ -155,7 +164,7 @@ class PerfdataProcessor(cotyledon.Service):
             self._client.metric.batch_resources_metrics_measures(batch)
 
     def _process_perfdata_line(self, line):
-        LOG.debug("Processing line: %s", line)
+        #LOG.debug("Processing line: %s", line)
         try:
             attrs = dict(item.split("::", 1) for item in line.split('\t'))
         except ValueError:
