@@ -25,16 +25,11 @@ LOG = log.getLogger(__name__)
 
 
 def get_gnocchiclient(conf, endpoint_override=None):
-    requests_session = requests.session()
-    for scheme in list(requests_session.adapters.keys()):
-        requests_session.mount(scheme, ka_session.TCPKeepAliveAdapter(
-            pool_block=True))
-
     auth_plugin = ka_loading.load_auth_from_conf_options(conf, 'gnocchi')
-    session = ka_loading.load_session_from_conf_options(
-        conf, 'gnocchi', auth=auth_plugin, session=requests_session
+    ks_session = ka_loading.load_session_from_conf_options(
+        conf, 'gnocchi', auth=auth_plugin
     )
-    return client.Client('1', session,
+    return client.Client('1', ks_session,
                          interface=conf.gnocchi.interface,
                          region_name=conf.gnocchi.region_name,
                          endpoint_override=endpoint_override)
