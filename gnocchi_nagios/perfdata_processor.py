@@ -26,7 +26,6 @@
 
 import datetime
 import os
-import re
 import threading
 import uuid
 
@@ -114,9 +113,6 @@ class PerfdataProcessor(cotyledon.Service):
             self._post_batch(path, *self._prepare_batch(data))
         finally:
             os.remove(to_process)
-
-    RE_UNKNOW_METRICS = re.compile("Unknown metrics: (.*) \(HTTP 400\)")
-    RE_UNKNOW_METRICS_LIST = re.compile("([^/ ,]*)/([^,]*)")
 
     @gnocchi_client.retry
     def _post_batch(self, path, ids_mapping, batch):
