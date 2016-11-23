@@ -98,7 +98,7 @@ class PerfdataProcessor(cotyledon.Service):
                 except six.moves.queue.Empty:
                     # NOTE(sileht): Allow the process to exit gracefully every
                     # 10 seconds if it don't do anything
-                    return
+                    continue
                 self._process_perfdata_files(paths)
             except Exception:
                 LOG.error("Unexpected error during measures processing",
