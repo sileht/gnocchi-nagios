@@ -24,7 +24,9 @@
 # SERVICESTATE::OK
 # SERVICESTATETYPE::HARD
 
+from collections import defaultdict
 import datetime
+import hashlib
 import os
 import threading
 import time
@@ -33,6 +35,7 @@ import uuid
 import cotyledon
 from gnocchiclient import exceptions
 import iso8601
+import oslo_cache
 from oslo_log import log
 from oslo_serialization import jsonutils
 from oslo_utils import strutils
@@ -46,6 +49,18 @@ MANDATORY_ATTRS_COMMON = ('DATATYPE', 'TIMET', 'HOSTNAME')
 MANDATORY_ATTRS_SERVICE = ('SERVICEDESC', 'SERVICEPERFDATA')
 MANDATORY_ATTRS_HOST = ('HOSTPERFDATA',)
 
+NAME_ENCODED = __name__.encode('utf-8')
+CACHE_NAMESPACE = uuid.UUID(bytes=hashlib.md5(NAME_ENCODED).digest())
+LOG = log.getLogger(__name__)
+
+
+def cache_key_mangler(key):
+    """Construct an opaque cache key."""
+    if six.PY2:
+        key = key.encode('utf-8')
+    return uuid.uuid5(CACHE_NAMESPACE, key).hex
+
+
 def timeit(method):
     def wrapper(*arg, **kwarg):
         t1 = time.time()
@@ -54,6 +69,30 @@ def timeit(method):
         LOG.info("%s tooks %ss" % (method.__name__, (t2 - t1)))
         return res
     return wrapper
+
+
+class LockedDefaultDict(defaultdict):
+    """defaultdict with lock to handle threading
+
+    Dictionary only deletes if nothing is accessing dict and nothing is holding
+    lock to be deleted. If both cases are not true, it will skip delete.
+    """
+    def __init__(self, *args, **kwargs):
+        self.lock = threading.Lock()
+        super(LockedDefaultDict, self).__init__(*args, **kwargs)
+
+    def __getitem__(self, key):
+        with self.lock:
+            return super(LockedDefaultDict, self).__getitem__(key)
+
+    def pop(self, key, *args):
+        with self.lock:
+            key_lock = super(LockedDefaultDict, self).__getitem__(key)
+            if key_lock.acquire(False):
+                try:
+                    super(LockedDefaultDict, self).pop(key, *args)
+                finally:
+                    key_lock.release()
 
 
 class MalformedPerfdata(Exception):
@@ -68,6 +107,11 @@ class PerfdataProcessor(cotyledon.Service):
         self._shutdown = threading.Event()
         self._shutdown_done = threading.Event()
         self._client = gnocchi_client.get_gnocchiclient(conf)
+        oslo_cache.configure(self._conf)
+        cache_region = oslo_cache.create_region()
+        self._cache = oslo_cache.configure_cache_region(
+            self._conf, cache_region)
+        self._cache.key_mangler = cache_key_mangler
 
     def run(self):
         while not self._shutdown.is_set():
@@ -125,17 +169,19 @@ class PerfdataProcessor(cotyledon.Service):
 
             for detail in e.message['detail']:
                 resource_id = detail['resource_id']
-                LOG.info("%s: creating resource: %s", paths, resource_id)
                 resource = {
                     'id': resource_id,
                     'host': resource_id,
                 }
-                try:
-                    self._client.resource.create("nagios-service",
-                                                 resource)
-                except exceptions.ResourceAlreadyExists:
-                    # Created somewhere else
-                    pass
+                if not self._cache.get(resource_id):
+                    LOG.info("%s: creating resource: %s", paths, resource_id)
+                    try:
+                        self._client.resource.create("nagios-service",
+                                                     resource)
+                    except exceptions.ResourceAlreadyExists:
+                        # Created somewhere else
+                        pass
+                    self._cache.set(resource_id, True)
 
             # Must work now !
             self._client.metric.batch_resources_metrics_measures(
