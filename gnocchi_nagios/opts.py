@@ -42,6 +42,12 @@ def list_opts():
                         'file processing we can\'t really known if the '
                         'Gnocchi have received the data of not. This option '
                         'allows to resubmit the perfdata a second time.'),
+            cfg.StrOpt('slash_replacement',
+                       default='@',
+                       help='replace / with this in resource_id and metric name'),
+            cfg.StrOpt('resource_id_delim',
+                       default='%',
+                       help="resource id are built as host<delim>service_name"),
         ]),
         ('gnocchi', [
             cfg.StrOpt('region-name',

@@ -46,12 +46,6 @@ MANDATORY_ATTRS_COMMON = ('DATATYPE', 'TIMET', 'HOSTNAME')
 MANDATORY_ATTRS_SERVICE = ('SERVICEDESC', 'SERVICEPERFDATA')
 MANDATORY_ATTRS_HOST = ('HOSTPERFDATA',)
 
-# uuid5 namespace for id transformation.
-# NOTE(chdent): This UUID must stay the same, forever, across all
-# of gnocchi to preserve its value as a URN namespace.
-RESOURCE_ID_NAMESPACE = uuid.UUID('0a7a15ff-aa13-4ac2-897c-9bdf30ce175b')
-
-
 def timeit(method):
     def wrapper(*arg, **kwarg):
         t1 = time.time()
@@ -60,21 +54,6 @@ def timeit(method):
         LOG.info("%s tooks %ss" % (method.__name__, (t2 - t1)))
         return res
     return wrapper
-
-
-def encode_resource_id(value):
-    try:
-        try:
-            return str(uuid.UUID(value))
-        except ValueError:
-            if len(value) <= 255:
-                if six.PY2:
-                    value = value.encode('utf-8')
-                return str(uuid.uuid5(RESOURCE_ID_NAMESPACE, value))
-            raise ValueError(
-                'transformable resource id >255 max allowed characters')
-    except Exception as e:
-        raise ValueError(e)
 
 
 class MalformedPerfdata(Exception):
@@ -126,10 +105,10 @@ class PerfdataProcessor(cotyledon.Service):
                 os.remove(to_process)
 
         self._post_batch([os.path.basename(p) for p in paths],
-                         *self._prepare_batch(data))
+                         self._prepare_batch(data))
 
     @gnocchi_client.retry
-    def _post_batch(self, paths, ids_mapping, batch):
+    def _post_batch(self, paths, batch):
         try:
             self._client.metric.batch_resources_metrics_measures(
                 batch, create_metrics=True)
@@ -142,15 +121,15 @@ class PerfdataProcessor(cotyledon.Service):
                 raise
 
             LOG.info("%s: %s/%s resources to create", paths,
-                     len(e.message['detail']), len(ids_mapping))
+                     len(e.message['detail']), len(batch))
 
-            for gnocchi_id in e.message['detail']:
-                LOG.info("%s: creating resource: %s",
-                         paths, ids_mapping[gnocchi_id])
+            for detail in e.message['detail']:
+                resource_id = detail['resource_id']
+                LOG.info("%s: creating resource: %s", paths, resource_id)
                 resource = {
-                    'id': "%s::%s" % ids_mapping[gnocchi_id],
-                    'host': ids_mapping[gnocchi_id][0],
-                    'service': ids_mapping[gnocchi_id][1],
+                    'id': resource_id,
+                    'host': resource_id.partition('%')[0],
+                    'service': resource_id.partition('%')[2],
                 }
                 try:
                     self._client.resource.create("nagios-service",
@@ -214,15 +193,19 @@ class PerfdataProcessor(cotyledon.Service):
         return measures
 
     def _prepare_batch(self, data):
-        ids_mapping = {}
         batch = {}
         for host, service, measures in data:
-            resource_id = "%s::%s" % (host, service)
-            ids_mapping[encode_resource_id(resource_id)] = (host, service)
+            resource_id = "%s%s%s" % (
+                host, 
+                self._conf.resource_id_delim,
+                service
+            )
+            resource_id = resource_id.replace('/', self._conf.slash_replacement)
             r = batch.setdefault(resource_id, {})
             for metric, value in measures.items():
+                metric = metric.replace('/', self._conf.slash_replacement)
                 r.setdefault(metric, []).append(value)
-        return ids_mapping, batch
+        return batch
 
     def _convert_value(self, v):
         # This currently takes care only on bytes
