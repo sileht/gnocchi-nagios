@@ -128,8 +128,7 @@ class PerfdataProcessor(cotyledon.Service):
                 LOG.info("%s: creating resource: %s", paths, resource_id)
                 resource = {
                     'id': resource_id,
-                    'host': resource_id.partition('%')[0],
-                    'service': resource_id.partition('%')[2],
+                    'host': resource_id,
                 }
                 try:
                     self._client.resource.create("nagios-service",
@@ -195,14 +194,10 @@ class PerfdataProcessor(cotyledon.Service):
     def _prepare_batch(self, data):
         batch = {}
         for host, service, measures in data:
-            resource_id = "%s%s%s" % (
-                host, 
-                self._conf.resource_id_delim,
-                service
-            )
-            resource_id = resource_id.replace('/', self._conf.slash_replacement)
+            resource_id = host.replace('/', self._conf.slash_replacement)
             r = batch.setdefault(resource_id, {})
             for metric, value in measures.items():
+                metric = "%s%s%s" % (service, self._conf.metric_delim, metric)
                 metric = metric.replace('/', self._conf.slash_replacement)
                 r.setdefault(metric, []).append(value)
         return batch

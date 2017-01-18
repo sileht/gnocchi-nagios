@@ -45,9 +45,9 @@ def list_opts():
             cfg.StrOpt('slash_replacement',
                        default='@',
                        help='replace / with this in resource_id and metric name'),
-            cfg.StrOpt('resource_id_delim',
-                       default='%',
-                       help="resource id are built as host<delim>service_name"),
+            cfg.StrOpt('metric_delim',
+                       default='::',
+                       help="metric name are built as service_name<delim>perfdata_name"),
         ]),
         ('gnocchi', [
             cfg.StrOpt('region-name',
