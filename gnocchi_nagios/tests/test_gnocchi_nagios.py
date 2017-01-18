@@ -78,11 +78,7 @@ endpoint = "%s"
             'attributes': {'host': {'max_length': 255,
                                     'min_length': 0,
                                     'required': True,
-                                    'type': 'string'},
-                           'service': {'max_length': 255,
-                                       'min_length': 0,
-                                       'required': True,
-                                       'type': 'string'}},
+                                    'type': 'string'}},
             'name': 'nagios-service',
             'state': 'active'}
         self.assertEqual(expected_rt, rt)
@@ -162,15 +158,12 @@ endpoint = "%s"
 
         c = gnocchi_client.get_gnocchiclient(self.conf)
         resources = c.resource.list('nagios-service')
-        self.assertEqual(2, len(resources))
-        self.assertEqual(['arn::Uptime', 'arn::fs_/'],
+        self.assertEqual(1, len(resources))
+        self.assertEqual(['arn'],
                          sorted([r['original_resource_id']
                                  for r in resources]))
         self.assertEqual(['arn', 'arn'],
                          sorted([r['host']
-                                 for r in resources]))
-        self.assertEqual(['Uptime', 'fs_/'],
-                         sorted([r['service']
                                  for r in resources]))
 
         metrics = c.metric.list()
@@ -186,8 +179,8 @@ endpoint = "%s"
         # self.assertEqual(expected_measures, measures)
 
         measures = c.metric.get_measures(
-            "trend",
-            resource_id=perfdata_processor.encode_resource_id("arn::fs_/"),
+            "fs_%::trend",
+            resource_id="arn",
             refresh=True)
         expected_measures = [
             ['2016-11-21T00:00:00+00:00', 86400.0, -1.658471],
@@ -196,7 +189,7 @@ endpoint = "%s"
         ]
         self.assertEqual(expected_measures, measures)
 
-        measures = c.metric.get_measures("uptime", resource_id="arn::Uptime",
+        measures = c.metric.get_measures("Uptime::uptime", resource_id="arn",
                                          refresh=True)
         expected_measures = [
             [u'2016-11-21T00:00:00+00:00', 86400.0, 9175101.06],
