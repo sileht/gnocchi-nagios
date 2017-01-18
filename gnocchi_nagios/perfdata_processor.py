@@ -168,7 +168,7 @@ class PerfdataProcessor(cotyledon.Service):
                      len(e.message['detail']), len(batch))
 
             for detail in e.message['detail']:
-                resource_id = detail['resource_id']
+                resource_id = detail['original_resource_id']
                 resource = {
                     'id': resource_id,
                     'host': resource_id,
