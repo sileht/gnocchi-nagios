@@ -45,10 +45,12 @@ def list_opts():
                         'allows to resubmit the perfdata a second time.'),
             cfg.StrOpt('slash_replacement',
                        default='@',
-                       help='replace / with this in resource_id and metric name'),
+                       help=('replace / with this in resource_id and metric '
+                             'name')),
             cfg.StrOpt('metric_delim',
                        default='::',
-                       help="metric name are built as service_name<delim>perfdata_name"),
+                       help=("metric name are built as "
+                             "service_name<delim>perfdata_name")),
         ]),
         ('gnocchi', [
             cfg.StrOpt('region-name',

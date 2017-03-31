@@ -42,9 +42,8 @@ debug = False
 spool_directory = "%s"
 
 [gnocchi]
-auth_type = gnocchi-noauth
-user_id = "nagios"
-project_id = "nagios"
+auth_type = gnocchi-basic
+user = admin
 roles = admin
 endpoint = "%s"
 """ % (self.tempdir, os.getenv('PIFPAF_GNOCCHI_HTTP_URL'))
@@ -90,7 +89,7 @@ endpoint = "%s"
         f1 = "%s/%s" % (self.tempdir, "host-perfdata.1479712710")
         f2 = "%s/%s" % (self.tempdir, "service-perfdata.1479712710")
         f3 = "%s/%s" % (self.tempdir, "host-perfdata.1479712720")
-        f4 = "%s/%s" % (self.tempdir, "service-perfdata.1479712720")
+        f4 = "%s/%s" % (self.tempdir, "service-perfdata.1479712721")
         p1 = f1 + self.conf.file_picked_suffix + "0"
         p2 = f2 + self.conf.file_picked_suffix + "1"
 
@@ -100,12 +99,12 @@ endpoint = "%s"
 
         # The queues must be fill
         p._run_job()
-        self.assertEqual(2, queue.qsize())
+        self.assertEqual(1, queue.qsize())
         self.assertEqual(2, len(p._local_queue))
 
-        # Processors takes files
-        queue.get()
-        queue.get()
+        # Processors takes files, ensure we have the both files returned
+        paths = queue.get()
+        self.assertEqual(2, len(paths))
 
         # The main queue have been emptied
         # and the local tracking is still OK
@@ -129,12 +128,12 @@ endpoint = "%s"
 
         # New stuffs should be there
         p._run_job()
-        self.assertEqual(2, queue.qsize())
+        self.assertEqual(1, queue.qsize())
         self.assertEqual(2, len(p._local_queue))
 
-        # Processors takes files
-        queue.get()
-        queue.get()
+        # Processors takes files, ensure we have the both files returned
+        paths = queue.get()
+        self.assertEqual(2, len(paths))
 
         # Processors finish to push them
         os.remove(p1)
@@ -159,32 +158,17 @@ endpoint = "%s"
         c = gnocchi_client.get_gnocchiclient(self.conf)
         resources = c.resource.list('nagios-service')
         self.assertEqual(1, len(resources))
-        self.assertEqual(['arn'],
-                         sorted([r['original_resource_id']
-                                 for r in resources]))
-        self.assertEqual(['arn', 'arn'],
-                         sorted([r['host']
-                                 for r in resources]))
+        self.assertEqual('arn', resources[0]['original_resource_id'])
+        self.assertEqual('arn', resources[0]['host'])
 
         metrics = c.metric.list()
         self.assertEqual(6, len(metrics))
 
-        # FIXME(sileht): Looks like we have a bug with the '/' metric
-        # measures = c.metric.get_measures(
-        #    "/",
-        #    resource_id=perfdata_processor.encode_resource_id("arn::fs_/"),
-        #    refresh=True)
-        # expected_measures = [
-        # ]
-        # self.assertEqual(expected_measures, measures)
-
         measures = c.metric.get_measures(
-            "fs_%::trend",
+            "fs_@::trend",
             resource_id="arn",
             refresh=True)
         expected_measures = [
-            ['2016-11-21T00:00:00+00:00', 86400.0, -1.658471],
-            ['2016-11-21T11:00:00+00:00', 3600.0, -1.658471],
             ['2016-11-21T11:10:00+00:00', 300.0, -1.658471]
         ]
         self.assertEqual(expected_measures, measures)
@@ -192,7 +176,5 @@ endpoint = "%s"
         measures = c.metric.get_measures("Uptime::uptime", resource_id="arn",
                                          refresh=True)
         expected_measures = [
-            [u'2016-11-21T00:00:00+00:00', 86400.0, 9175101.06],
-            [u'2016-11-21T11:00:00+00:00', 3600.0, 9175101.06],
             [u'2016-11-21T11:10:00+00:00', 300.0, 9175101.06]]
         self.assertEqual(expected_measures, measures)
