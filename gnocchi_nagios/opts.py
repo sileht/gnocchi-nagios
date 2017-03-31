@@ -23,10 +23,11 @@ def list_opts():
                        help='The directory where nagios/icinga writes its '
                        'perfdata file'),
             cfg.IntOpt('workers', min=1,
+                       default=1,
                        help='Number of workers for Gnocchi metric daemons. '
                        'By default the available number of CPU is used.'),
             cfg.IntOpt('file_per_worker_pass',
-                       default=1,
+                       default=100,
                        help='Number of file read by a worker run'),
             cfg.StrOpt('file_picked_suffix',
                        default="-processed-by-worker-",
@@ -68,5 +69,5 @@ def list_keystoneauth_opts():
     # for the gnocchi-noauth plugin. But other options are possible.
     return [('gnocchi',
              loading.get_auth_common_conf_options() +
-             loading.get_auth_plugin_conf_options('gnocchi-noauth')
+             loading.get_auth_plugin_conf_options('gnocchi-basic')
              )]
